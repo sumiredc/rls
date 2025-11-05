@@ -23,9 +23,9 @@ pub fn print_grid(items: Vec<String>, mut writer: impl std::io::Write) -> Result
 
     // グリッドの計算 & 表示
     if let Some(grid_display) = grid.fit_into_width(terminal_width) {
-        let _ = writeln!(writer, "{}", grid_display);
+        let _ = write!(writer, "{}", grid_display);
     } else {
-        let _ = writeln!(writer, "{:?}", grid);
+        let _ = write!(writer, "{:?}", grid);
     }
 
     Ok(())
