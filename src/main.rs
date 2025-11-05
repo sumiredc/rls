@@ -1,19 +1,32 @@
-use anyhow::{Context, Result};
-use clap::Parser;
+use anyhow::Result;
+use crossbeam_channel::{Receiver, bounded, select, tick};
+use std::time::Duration;
 
-#[derive(Parser)]
-struct Cli {
-    pattern: String,
-    path: std::path::PathBuf,
+fn ctrl_channel() -> Result<Receiver<()>, ctrlc::Error> {
+    let (sender, receiver) = bounded(100);
+    ctrlc::set_handler(move || {
+        let _ = sender.send(());
+    })?;
+
+    Ok(receiver)
 }
 
 fn main() -> Result<()> {
-    let args = Cli::parse();
+    let ctrl_c_events = ctrl_channel()?;
+    let ticks = tick(Duration::from_secs(1));
 
-    let content = std::fs::read_to_string(&args.path)
-        .with_context(|| format!("could not read file `{}`", args.path.display()))?;
-
-    rls::find_matches(&content, &args.pattern, &mut std::io::stdout());
+    loop {
+        select! {
+            recv(ticks) -> _ => {
+                println!("working!");
+            }
+            recv(ctrl_c_events) -> _ => {
+                println!();
+                println!("Goodbye!");
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
