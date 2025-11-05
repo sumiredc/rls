@@ -13,6 +13,8 @@ ctrlc = "3.5"
 signal-hook = "0.3.18"
 crossbeam-channel = "0.5.15"
 confy = "0.3.1"
+term_grid = "0.2.0"
+terminal_size = "0.4.3"
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
