@@ -1,8 +1,8 @@
 mod cli;
 mod display;
+mod entry;
 
-use anyhow::{Context, Result};
-use std::fs;
+use anyhow::Result;
 use std::path::PathBuf;
 
 pub fn run() -> Result<()> {
@@ -15,22 +15,14 @@ pub fn run() -> Result<()> {
     };
 
     // 対象ディレクトリの一覧取得
-    let entries =
-        fs::read_dir(&path).context(format!("Failed to read directory '{}'", path.display()))?;
-
-    let mut file_names: Vec<String> = Vec::new();
-    for e in entries {
-        let entry = e.context("Failed to read a directory entry")?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-
-        file_names.push(file_name);
-    }
-
-    // アルファベット順ソート
-    file_names.sort_unstable();
+    let entries = if args.all {
+        entry::get_all(&path)?
+    } else {
+        entry::get_exclude_hidden(&path)?
+    };
 
     // グリッドの表示
-    display::print_grid(file_names, &mut std::io::stdout())?;
+    display::print_grid(entries, &mut std::io::stdout())?;
 
     Ok(())
 }
