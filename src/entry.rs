@@ -8,6 +8,10 @@ pub fn get_all(path: &PathBuf) -> Result<Vec<String>> {
     let entries = read_dir(path)?;
     let mut file_names = filter_file_names(entries, false)?;
 
+    // カレントディレクトリ、上位ディレクトリへのパスを追加
+    file_names.push(String::from("."));
+    file_names.push(String::from(".."));
+
     // アルファベット順ソート
     file_names.sort_unstable();
 
