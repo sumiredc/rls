@@ -4,13 +4,18 @@ use std::{
     path::PathBuf,
 };
 
-pub fn get_all(path: &PathBuf) -> Result<Vec<String>> {
+// Arugments
+//
+// * `include_cp` - Include list current(.) and parent(..)
+pub fn get_all(path: &PathBuf, include_cp: bool) -> Result<Vec<String>> {
     let entries = read_dir(path)?;
     let mut file_names = filter_file_names(entries, false)?;
 
-    // カレントディレクトリ、親ディレクトリへのパスを追加
-    file_names.push(String::from("."));
-    file_names.push(String::from(".."));
+    if include_cp {
+        // カレントディレクトリ、親ディレクトリへのパスを追加
+        file_names.push(String::from("."));
+        file_names.push(String::from(".."));
+    }
 
     // アルファベット順ソート
     file_names.sort_unstable();

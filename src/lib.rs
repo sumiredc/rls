@@ -15,8 +15,8 @@ pub fn run() -> Result<()> {
     };
 
     // 対象ディレクトリの一覧取得
-    let entries = if args.all {
-        entry::get_all(&path)?
+    let entries = if args.all || args.almost_all {
+        entry::get_all(&path, args.all)?
     } else {
         entry::get_exclude_hidden(&path)?
     };

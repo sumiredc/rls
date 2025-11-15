@@ -8,6 +8,9 @@ pub struct Cli {
 
     #[arg(short, long, default_value_t = false)]
     pub all: bool,
+
+    #[arg(short = 'A', long, default_value_t = false)]
+    pub almost_all: bool,
 }
 
 pub fn parse() -> Cli {
