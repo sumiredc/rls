@@ -1,7 +1,7 @@
-use std::{fs::metadata, time::UNIX_EPOCH};
+use std::fs::metadata;
 
 use anyhow::{Result, bail};
-use chrono::DateTime;
+use chrono::{DateTime, Local};
 use term_grid::{Cell, Direction, Filling, Grid, GridOptions};
 use terminal_size::{Width, terminal_size};
 
@@ -46,30 +46,14 @@ pub fn print_long_list(entries: &Vec<PathEntry>, mut writer: impl std::io::Write
         };
 
         // 最終更新日時の取得
-        let modified = match meta.modified() {
-            Ok(m) => {
-                let duration = match m.duration_since(UNIX_EPOCH) {
-                    Ok(d) => d.as_secs(),
-                    Err(err) => bail!(
-                        "Can't get duration in modified \"{}\": {}",
-                        entry.path().display(),
-                        err
-                    ),
-                };
+        let modefied_datetime: DateTime<Local> = meta.modified()?.into();
 
-                match DateTime::from_timestamp_secs(duration as i64) {
-                    Some(dt) => dt.to_string(),
-                    None => String::new(),
-                }
-            }
-            Err(err) => bail!(
-                "Can't get modified in metadata \"{}\": {}",
-                entry.path().display(),
-                err
-            ),
-        };
-
-        let _ = writeln!(writer, "{} {}", modified, entry.filename());
+        let _ = writeln!(
+            writer,
+            "{} {}",
+            modefied_datetime.format("%H:%M").to_string(),
+            entry.filename()
+        );
     }
 
     Ok(())
