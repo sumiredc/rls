@@ -51,7 +51,7 @@ pub fn print_long_list(entries: &Vec<PathEntry>, mut writer: impl std::io::Write
         let _ = writeln!(
             writer,
             "{} {}",
-            modefied_datetime.format("%H:%M").to_string(),
+            modefied_datetime.format("%b %e %H:%M").to_string(),
             entry.filename()
         );
     }
