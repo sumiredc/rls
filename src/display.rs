@@ -2,6 +2,7 @@ use std::fs::metadata;
 
 use anyhow::{Result, bail};
 use chrono::{DateTime, Local};
+use std::os::unix::fs::MetadataExt;
 use term_grid::{Cell, Direction, Filling, Grid, GridOptions};
 use terminal_size::{Width, terminal_size};
 
@@ -45,14 +46,22 @@ pub fn print_long_list(entries: &Vec<PathEntry>, mut writer: impl std::io::Write
             Err(err) => bail!("Can't get metadata \"{}\": {}", entry.path().display(), err),
         };
 
+        // リンク数の取得
+        let nlink = meta.nlink();
+
+        // サイズの取得
+        let file_size = meta.len();
+
         // 最終更新日時の取得
         let modefied_datetime: DateTime<Local> = meta.modified()?.into();
+        let formatted_modefiled = modefied_datetime.format("%b %e %H:%M").to_string();
+
+        // ファイル名の取得
+        let filename = entry.filename();
 
         let _ = writeln!(
             writer,
-            "{} {}",
-            modefied_datetime.format("%b %e %H:%M").to_string(),
-            entry.filename()
+            "{nlink} {file_size} {formatted_modefiled} {filename}",
         );
     }
 
