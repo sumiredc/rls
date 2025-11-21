@@ -1,18 +1,34 @@
-use std::fs::metadata;
+use std::{
+    cmp::max,
+    fs::{Metadata, metadata},
+};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use chrono::{DateTime, Local};
 use std::os::unix::fs::MetadataExt;
 use term_grid::{Cell, Direction, Filling, Grid, GridOptions};
 use terminal_size::{Width, terminal_size};
+use thiserror::Error;
 
 use crate::entry::PathEntry;
 
 // ターミナル幅が取得できなかった場合のデフォルト値
 const DEFAULT_TERMINAL_SIZE: usize = 80;
 
+#[derive(Error, Debug)]
+pub enum DisplayError {
+    #[error("Metadata Error: {0} {1}")]
+    Metadata(String, std::io::Error),
+
+    #[error("Modefied Error: {0} {1}")]
+    Modefied(String, std::io::Error),
+}
+
 // grid の描画
-pub fn print_grid(entries: &Vec<PathEntry>, mut writer: impl std::io::Write) -> Result<()> {
+pub fn print_grid(
+    entries: &Vec<PathEntry>,
+    mut writer: impl std::io::Write,
+) -> Result<(), DisplayError> {
     // ターミナルの幅を取得
     let terminal_width = get_terminal_size();
 
@@ -37,35 +53,67 @@ pub fn print_grid(entries: &Vec<PathEntry>, mut writer: impl std::io::Write) -> 
     Ok(())
 }
 
+struct PrintDetail {
+    nlink: u64,       // リンク数
+    filesize: u64,    // ファイルサイズ
+    modefied: String, // 更新日時
+    filename: String, // ファイル名
+}
+
 // long list の描画
-pub fn print_long_list(entries: &Vec<PathEntry>, mut writer: impl std::io::Write) -> Result<()> {
-    for entry in entries {
-        // metadata の取得
-        let meta = match metadata(&entry.path()) {
-            Ok(m) => m,
-            Err(err) => bail!("Can't get metadata \"{}\": {}", entry.path().display(), err),
-        };
+pub fn print_long_list(
+    entries: &Vec<PathEntry>,
+    mut writer: impl std::io::Write,
+) -> Result<(), DisplayError> {
+    let mut nlink_len = 0;
+    let mut filesize_len = 0;
 
-        // リンク数の取得
-        let nlink = meta.nlink();
+    let print_details: Vec<Result<PrintDetail, DisplayError>> = entries
+        .iter()
+        .map(|entry| -> Result<PrintDetail, DisplayError> {
+            let meta = metadata(&entry.path())
+                .map_err(|err| DisplayError::Metadata(entry.path().display().to_string(), err))?;
+            let print_detail = PrintDetail {
+                nlink: meta.nlink(),
+                filesize: meta.len(),
+                filename: entry.filename(),
+                modefied: get_modefied(&meta, entry)?,
+            };
 
-        // サイズの取得
-        let file_size = meta.len();
+            // 出力長を更新
+            nlink_len = max(nlink_len, print_detail.nlink.to_string().len());
+            filesize_len = max(filesize_len, print_detail.filesize.to_string().len());
 
-        // 最終更新日時の取得
-        let modefied_datetime: DateTime<Local> = meta.modified()?.into();
-        let formatted_modefiled = modefied_datetime.format("%b %e %H:%M").to_string();
+            Ok(print_detail)
+        })
+        .collect();
 
-        // ファイル名の取得
-        let filename = entry.filename();
+    // 長さの微調整
+    filesize_len += 1;
+
+    for res in print_details {
+        let print_detail = res?;
+        let nlink = format!("{:>width$}", print_detail.nlink, width = nlink_len);
+        let filesize = format!("{:>width$}", print_detail.filesize, width = filesize_len);
 
         let _ = writeln!(
             writer,
-            "{nlink} {file_size} {formatted_modefiled} {filename}",
+            "{nlink} {filesize} {} {}",
+            print_detail.modefied, print_detail.filename
         );
     }
 
     Ok(())
+}
+
+// 更新日時の取得
+fn get_modefied(meta: &Metadata, entry: &PathEntry) -> Result<String, DisplayError> {
+    let modefiled: DateTime<Local> = meta
+        .modified()
+        .map_err(|err| DisplayError::Modefied(entry.path().display().to_string(), err))?
+        .into();
+
+    Ok(modefiled.format("%b %e %H:%M").to_string())
 }
 
 // ターミナルのサイズ取得
