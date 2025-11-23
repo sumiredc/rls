@@ -54,10 +54,12 @@ pub fn print_grid(
 }
 
 struct PrintDetail {
-    nlink: u64,       // リンク数
-    filesize: u64,    // ファイルサイズ
-    modefied: String, // 更新日時
-    filename: String, // ファイル名
+    filetype: String,   // ファイルタイプ (d, l, -)
+    permission: String, // パーミッション (rwxrwxrwx)
+    nlink: u64,         // リンク数
+    filesize: u64,      // ファイルサイズ
+    modefied: String,   // 更新日時
+    filename: String,   // ファイル名
 }
 
 // long list の描画
@@ -73,7 +75,10 @@ pub fn print_long_list(
         .map(|entry| -> Result<PrintDetail, DisplayError> {
             let meta = metadata(&entry.path())
                 .map_err(|err| DisplayError::Metadata(entry.path().display().to_string(), err))?;
+
             let print_detail = PrintDetail {
+                filetype: get_filetype(&meta),
+                permission: get_permission(&meta),
                 nlink: meta.nlink(),
                 filesize: meta.len(),
                 filename: entry.filename(),
@@ -93,17 +98,76 @@ pub fn print_long_list(
 
     for res in print_details {
         let print_detail = res?;
+
+        let filetype = &print_detail.filetype;
+        let permission = &print_detail.permission;
         let nlink = format!("{:>width$}", print_detail.nlink, width = nlink_len);
         let filesize = format!("{:>width$}", print_detail.filesize, width = filesize_len);
+        let modefied = &print_detail.modefied;
+        let filename = &print_detail.filename;
 
         let _ = writeln!(
             writer,
-            "{nlink} {filesize} {} {}",
-            print_detail.modefied, print_detail.filename
+            "{filetype}{permission} {nlink} {filesize} {modefied} {filename}",
         );
     }
 
     Ok(())
+}
+
+fn get_filetype(meta: &Metadata) -> String {
+    const DIRECTORY: &str = "d";
+    const SYMLINK: &str = "l";
+    const OTHER_FILE: &str = "-";
+
+    let filetype = meta.file_type();
+    let symbol = if filetype.is_dir() {
+        DIRECTORY
+    } else if filetype.is_symlink() {
+        SYMLINK
+    } else {
+        OTHER_FILE
+    };
+
+    symbol.to_string()
+}
+
+// パーミッション情報の取得
+fn get_permission(meta: &Metadata) -> String {
+    const READ: &str = "r";
+    const WRITE: &str = "w";
+    const EXECUTE: &str = "x";
+    const NONE: &str = "-";
+
+    const USER_READ: u32 = 0o400; // 256
+    const USER_WRITE: u32 = 0o200; // 128
+    const USER_EXECUTE: u32 = 0o100; // 64
+    const GROUP_READ: u32 = 0o040; // 32
+    const GROUP_WRITE: u32 = 0o020; // 16
+    const GROUP_EXECUTE: u32 = 0o010; // 8
+    const OTHER_READ: u32 = 0o004; // 4
+    const OTHER_WRITE: u32 = 0o002; // 2
+    const OTHER_EXECUTE: u32 = 0o001; //1
+
+    let mode = meta.mode();
+    let mut permission = String::new();
+
+    for (p, s) in [
+        (USER_READ, READ),
+        (USER_WRITE, WRITE),
+        (USER_EXECUTE, EXECUTE),
+        (GROUP_READ, READ),
+        (GROUP_WRITE, WRITE),
+        (GROUP_EXECUTE, EXECUTE),
+        (OTHER_READ, READ),
+        (OTHER_WRITE, WRITE),
+        (OTHER_EXECUTE, EXECUTE),
+    ] {
+        let symbol = if mode & p != 0 { s } else { NONE };
+        permission.push_str(symbol);
+    }
+
+    permission
 }
 
 // 更新日時の取得
