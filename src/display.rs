@@ -12,9 +12,6 @@ use thiserror::Error;
 
 use crate::entry::PathEntry;
 
-// ターミナル幅が取得できなかった場合のデフォルト値
-const DEFAULT_TERMINAL_SIZE: usize = 80;
-
 #[derive(Error, Debug)]
 pub enum DisplayError {
     #[error("Metadata Error: {0} {1}")]
@@ -54,8 +51,9 @@ pub fn print_grid(
 }
 
 struct PrintDetail {
-    filetype: String,   // ファイルタイプ (d, l, -)
+    filetype: char,     // ファイルタイプ (d, l, -)
     permission: String, // パーミッション (rwxrwxrwx)
+    xattr: char,        // 拡張属性
     nlink: u64,         // リンク数
     filesize: u64,      // ファイルサイズ
     modefied: String,   // 更新日時
@@ -79,6 +77,7 @@ pub fn print_long_list(
             let print_detail = PrintDetail {
                 filetype: get_filetype(&meta),
                 permission: get_permission(&meta),
+                xattr: get_xattr(entry),
                 nlink: meta.nlink(),
                 filesize: meta.len(),
                 filename: entry.filename(),
@@ -101,6 +100,7 @@ pub fn print_long_list(
 
         let filetype = &print_detail.filetype;
         let permission = &print_detail.permission;
+        let xattr = &print_detail.xattr;
         let nlink = format!("{:>width$}", print_detail.nlink, width = nlink_len);
         let filesize = format!("{:>width$}", print_detail.filesize, width = filesize_len);
         let modefied = &print_detail.modefied;
@@ -108,17 +108,17 @@ pub fn print_long_list(
 
         let _ = writeln!(
             writer,
-            "{filetype}{permission} {nlink} {filesize} {modefied} {filename}",
+            "{filetype}{permission}{xattr} {nlink} {filesize} {modefied} {filename}",
         );
     }
 
     Ok(())
 }
 
-fn get_filetype(meta: &Metadata) -> String {
-    const DIRECTORY: &str = "d";
-    const SYMLINK: &str = "l";
-    const OTHER_FILE: &str = "-";
+fn get_filetype(meta: &Metadata) -> char {
+    const DIRECTORY: char = 'd';
+    const SYMLINK: char = 'l';
+    const OTHER_FILE: char = '-';
 
     let filetype = meta.file_type();
     let symbol = if filetype.is_dir() {
@@ -129,15 +129,15 @@ fn get_filetype(meta: &Metadata) -> String {
         OTHER_FILE
     };
 
-    symbol.to_string()
+    symbol
 }
 
 // パーミッション情報の取得
 fn get_permission(meta: &Metadata) -> String {
-    const READ: &str = "r";
-    const WRITE: &str = "w";
-    const EXECUTE: &str = "x";
-    const NONE: &str = "-";
+    const READ: char = 'r';
+    const WRITE: char = 'w';
+    const EXECUTE: char = 'x';
+    const NONE: char = '-';
 
     const USER_READ: u32 = 0o400; // 256
     const USER_WRITE: u32 = 0o200; // 128
@@ -164,10 +164,23 @@ fn get_permission(meta: &Metadata) -> String {
         (OTHER_EXECUTE, EXECUTE),
     ] {
         let symbol = if mode & p != 0 { s } else { NONE };
-        permission.push_str(symbol);
+        permission.push(symbol);
     }
 
     permission
+}
+
+fn get_xattr(entry: &PathEntry) -> char {
+    match xattr::list(entry.path()) {
+        Ok(attrs) => {
+            if attrs.count() > 0 {
+                '@'
+            } else {
+                ' '
+            }
+        }
+        Err(_) => ' ',
+    }
 }
 
 // 更新日時の取得
@@ -182,6 +195,9 @@ fn get_modefied(meta: &Metadata, entry: &PathEntry) -> Result<String, DisplayErr
 
 // ターミナルのサイズ取得
 fn get_terminal_size() -> usize {
+    // ターミナル幅が取得できなかった場合のデフォルト値
+    const DEFAULT_TERMINAL_SIZE: usize = 80;
+
     if let Some((Width(w), _)) = terminal_size() {
         w as usize // ターミナルの幅
     } else {
