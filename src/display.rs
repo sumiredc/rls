@@ -67,6 +67,7 @@ pub fn print_long_list(
 ) -> Result<(), DisplayError> {
     let mut nlink_len = 0;
     let mut filesize_len = 0;
+    let mut block_total = 0;
 
     let print_details: Vec<Result<PrintDetail, DisplayError>> = entries
         .iter()
@@ -88,12 +89,18 @@ pub fn print_long_list(
             nlink_len = max(nlink_len, print_detail.nlink.to_string().len());
             filesize_len = max(filesize_len, print_detail.filesize.to_string().len());
 
+            // 合計ブロック数の計算
+            block_total += meta.blocks();
+
             Ok(print_detail)
         })
         .collect();
 
     // 長さの微調整
     filesize_len += 1;
+
+    // ブロック合計数の出力
+    let _ = writeln!(writer, "total {}", block_total);
 
     for res in print_details {
         let print_detail = res?;
